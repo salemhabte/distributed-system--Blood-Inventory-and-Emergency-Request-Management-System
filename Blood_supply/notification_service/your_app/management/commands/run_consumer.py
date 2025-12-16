@@ -1,48 +1,101 @@
-from django.core.management.base import BaseCommand
-from notification_service.kafka_consumer import get_consumer
-from notification_service.kafka_producer import publish_event
 import json
+import logging
+import time
+from django.core.management.base import BaseCommand
+from django.conf import settings
+from kafka import KafkaConsumer
+from your_app.models import Notification
 
+logger = logging.getLogger(__name__)
 
 class Command(BaseCommand):
-    help = "Runs the Kafka consumer for the Notification Service"
+    help = "Run Kafka consumer for notifications"
 
-    def handle(self, *args, **kwargs):
-        # Topics the Notification Service listens to
-        topics = [
-            "hospital.blood.requested",
-            "bloodbank.blood.approved",
-            "bloodbank.blood.rejected",
-            "bloodbank.inventory.updated",
-            "inventory.lowstock"
-        ]
+    def handle(self, *args, **options):
+        kafka_servers = getattr(settings, 'KAFKA_BOOTSTRAP_SERVERS', ['localhost:9092'])
+        topics = ['hospital_requests', 'request_status_updates', 'low_blood_alert']
 
-        consumer = get_consumer(topics)
+        self.stdout.write(self.style.SUCCESS(f'Connecting to Kafka at {kafka_servers}...'))
 
-        self.stdout.write(self.style.SUCCESS("📡 Notification Service Kafka Consumer is running..."))
+        try:
+            # Create consumer once, outside the loop
+            consumer = KafkaConsumer(
+                *topics,
+                bootstrap_servers=kafka_servers,
+                auto_offset_reset='earliest',
+                enable_auto_commit=True,
+                group_id='notification_service_group'
+            )
 
-        for message in consumer:
-            event_data = message.value
-            topic = message.topic
+            self.stdout.write(self.style.SUCCESS(
+                'Notification consumer started — listening to: ' + ','.join(topics)
+            ))
 
-            print("\n--------------------------------------")
-            print(f"📥 Received event from topic: {topic}")
-            print(f"📦 Data: {json.dumps(event_data, indent=2)}")
-            print("--------------------------------------\n")
+            while True:
+                try:
+                    for msg in consumer:
+                        # Skip empty messages
+                        if msg.value is None:
+                            self.stdout.write(self.style.WARNING(f"Empty message on {msg.topic}, skipping"))
+                            continue
 
-            # TODO: Later you will save notification to DB
-            # TODO: Then send in-app notifications
-            # TODO: Then publish 'notification.send' event using publish_event()
-            
-            # Example sending notification event back into Kafka
-            notification_event = {
-                "notificationId": event_data.get("requestId", "unknown"),
-                "recipientId": event_data.get("hospitalId", "unknown"),
-                "recipientType": "HOSPITAL",
-                "message": f"New event received on topic {topic}",
-                "eventType": "REQUEST_CREATED",
-                "timestamp": event_data.get("timestamp")
-            }
+                        # Parse JSON safely
+                        try:
+                            data = msg.value if isinstance(msg.value, dict) else json.loads(msg.value.decode('utf-8'))
+                        except (json.JSONDecodeError, AttributeError, UnicodeDecodeError) as e:
+                            self.stdout.write(self.style.ERROR(f"Invalid JSON on {msg.topic}: {msg.value} — {e}"))
+                            continue
 
-            # publish_event("notification.send", notification_event)
-            # print("📤 Published notification.send event")
+                        topic = msg.topic
+                        self.stdout.write(self.style.NOTICE(f"Message on {topic}: {data}"))
+
+                        # Handle messages
+                        if topic == 'hospital_requests':
+                            message = f"New request: {data.get('quantity')} units of {data.get('blood_type')} from {data.get('hospital_name') or data.get('hospital_id')}"
+                            Notification.objects.create(
+                                event_type='hospital_request',
+                                message=message,
+                                hospital_name=data.get('hospital_name') or data.get('hospital_id'),
+                                blood_type=data.get('blood_type'),
+                                units=data.get('quantity'),
+                                target='blood_bank',
+                                payload=data
+                            )
+
+                        elif topic == 'request_status_updates':
+                            message = f"Request {data.get('request_id')} is {data.get('status')}"
+                            Notification.objects.create(
+                                event_type='request_status',
+                                message=message,
+                                hospital_name=data.get('hospital_name') or data.get('hospital_id'),
+                                target='hospital',
+                                payload=data
+                            )
+
+                        elif topic == 'low_blood_alert':
+                            message = f"LOW BLOOD ALERT: {data.get('blood_type')} has {data.get('current_units')} units (threshold {data.get('threshold')})."
+                            Notification.objects.create(
+                                event_type='low_blood',
+                                message=message,
+                                blood_type=data.get('blood_type'),
+                                target='blood_bank',
+                                payload=data
+                            )
+
+                        else:
+                            Notification.objects.create(
+                                event_type='system',
+                                message=str(data),
+                                target='system',
+                                payload=data
+                            )
+
+                except KeyboardInterrupt:
+                    self.stdout.write(self.style.WARNING('Consumer stopped by user'))
+                    break
+                except Exception:
+                    logger.exception("Consumer crashed, retrying in 5 seconds...")
+                    time.sleep(5)
+
+        except Exception:
+            logger.exception("Failed to start Kafka consumer")
