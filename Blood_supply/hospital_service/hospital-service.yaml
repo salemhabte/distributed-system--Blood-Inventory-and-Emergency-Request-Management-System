@@ -1,0 +1,416 @@
+openapi: 3.0.3
+info:
+  title: Hospital Service API
+  version: 1.0.0
+  description: REST API for hospital operations including patients, blood requests, and local inventory.
+
+servers:
+  - url: http://localhost:8081
+    description: Local Hospital Service
+  - url: https://hospital.blood-supply-system.com
+    description: Production Hospital Service
+
+tags:
+  - name: Hospital Patients
+  - name: Hospital Requests
+  - name: Hospital Inventory
+
+paths:
+  /api/v1/hospital/patients:
+    post:
+      tags:
+        - Hospital Patients
+      summary: Create a new patient
+      operationId: createPatient
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PatientCreateRequest"
+      responses:
+        "201":
+          description: Patient created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Patient"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/hospital/patients/{patientId}:
+    get:
+      tags:
+        - Hospital Patients
+      summary: Get patient by ID
+      operationId: getPatient
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: patientId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Patient found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Patient"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Patient not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    put:
+      tags:
+        - Hospital Patients
+      summary: Update patient by ID
+      operationId: updatePatient
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: patientId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PatientUpdateRequest"
+      responses:
+        "200":
+          description: Patient updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Patient"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Patient not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/hospital/blood-requests:
+    post:
+      tags:
+        - Hospital Requests
+      summary: Create a blood request
+      operationId: createBloodRequest
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BloodRequestCreateRequest"
+      responses:
+        "201":
+          description: Request created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BloodRequest"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    get:
+      tags:
+        - Hospital Requests
+      summary: List all blood requests
+      operationId: listBloodRequests
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: List of blood requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/BloodRequest"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/hospital/blood-requests/{requestId}:
+    get:
+      tags:
+        - Hospital Requests
+      summary: Get blood request by ID
+      operationId: getBloodRequest
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Request found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BloodRequest"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Request not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/hospital/inventory:
+    get:
+      tags:
+        - Hospital Inventory
+      summary: Get local hospital inventory
+      operationId: getHospitalInventory
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Inventory list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/InventoryItem"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/hospital/inventory/update:
+    put:
+      tags:
+        - Hospital Inventory
+      summary: Update hospital inventory after receiving units
+      operationId: updateHospitalInventory
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HospitalInventoryUpdateRequest"
+      responses:
+        "200":
+          description: Inventory updated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Inventory updated successfully
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ErrorResponse:
+      type: object
+      properties:
+        timestamp:
+          type: string
+        status:
+          type: integer
+        error:
+          type: string
+        message:
+          type: string
+        path:
+          type: string
+      required: [timestamp, status, error, message, path]
+
+    PatientCreateRequest:
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        age:
+          type: integer
+          minimum: 0
+        bloodType:
+          type: string
+          example: A+
+        diagnosis:
+          type: string
+      required: [firstName, lastName, age, bloodType]
+
+    PatientUpdateRequest:
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        age:
+          type: integer
+        bloodType:
+          type: string
+        diagnosis:
+          type: string
+
+    Patient:
+      allOf:
+        - $ref: "#/components/schemas/PatientCreateRequest"
+        - type: object
+          properties:
+            patientId:
+              type: string
+            createdAt:
+              type: string
+      required:
+        - patientId
+        - createdAt
+
+    BloodRequestCreateRequest:
+      type: object
+      properties:
+        patientId:
+          type: string
+        bloodType:
+          type: string
+        unitsRequired:
+          type: integer
+          minimum: 1
+        priority:
+          type: string
+          enum: [EMERGENCY, SCHEDULED]
+        notes:
+          type: string
+      required:
+        - patientId
+        - bloodType
+        - unitsRequired
+        - priority
+
+    BloodRequest:
+      type: object
+      properties:
+        requestId:
+          type: string
+        patientId:
+          type: string
+        bloodType:
+          type: string
+        unitsRequired:
+          type: integer
+        priority:
+          type: string
+        status:
+          type: string
+        submittedAt:
+          type: string
+      required:
+        - requestId
+        - patientId
+        - bloodType
+        - unitsRequired
+        - priority
+        - status
+        - submittedAt
+
+    InventoryItem:
+      type: object
+      properties:
+        bloodType:
+          type: string
+        quantity:
+          type: integer
+        expiryDate:
+          type: string
+        batchNumber:
+          type: string
+
+    HospitalInventoryUpdateRequest:
+      type: object
+      properties:
+        bloodType:
+          type: string
+        unitsReceived:
+          type: integer

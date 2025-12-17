@@ -25,7 +25,11 @@ SECRET_KEY = 'django-insecure-nz&!&-y2i0cix2m-ejzd)ce6%4qd_f#9y0m77ljb01pxd^)7=x
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['*']  # Allow all hosts for Docker deployment
+
+# Kafka Configuration
+import os
+KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
 
 
 
