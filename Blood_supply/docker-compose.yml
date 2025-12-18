@@ -11,18 +11,20 @@ services:
 
   kafka:
     image: wurstmeister/kafka:latest
-    restart: "no"
-    links:
-      - zookeeper
+    container_name: kafka
     ports:
-      - 9092:9092
+      - "9092:9092"  # External access from host (e.g., Kafdrop, external tools)
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
-      KAFKA_LISTENERS: INTERNAL://:29092,EXTERNAL://:9092
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:29092,EXTERNAL://0.0.0.0:9092
       KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'  # Auto-creates topics on first publish
+    depends_on:
+      - zookeeper
+
   kafdrop:
     image: obsidiandynamics/kafdrop
     restart: "no"
@@ -38,11 +40,19 @@ services:
     build: ./hospital_service
     container_name: hospital-service
     ports:
-      - "8000:8000"   # Hospital → localhost:8000
+      - "8000:8000"
     environment:
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - POSTGRES_DB=hospital_db
+      - POSTGRES_USER=hospital_user
+      - POSTGRES_PASSWORD=hospital_pass
+      - POSTGRES_HOST=postgres-hospital
+      - POSTGRES_PORT=5432
+      - DJANGO_DEBUG=True
     depends_on:
       - kafka
+      - postgres-hospital
+    restart: unless-stopped
 
   bloodbank-service:
     build: ./bloodbank_service
@@ -50,7 +60,7 @@ services:
     ports:
       - "8001:8000"   # Bloodbank → localhost:8001
     environment:
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
     depends_on:
       - kafka
 
@@ -60,6 +70,23 @@ services:
     ports:
       - "8002:8000"   # Notification → localhost:8002
     environment:
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:9092
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
     depends_on:
       - kafka
+
+
+  postgres-hospital:
+    image: postgres:15
+    container_name: postgres-hospital
+    environment:
+      POSTGRES_DB: hospital_db
+      POSTGRES_USER: hospital_user
+      POSTGRES_PASSWORD: hospital_pass
+    ports:
+      - "5433:5432"  # Different host port to avoid conflict
+    volumes:
+      - postgres_hospital_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  postgres_hospital_data:
