@@ -44,6 +44,16 @@ class InventoryView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class ValidateRequestView(APIView):
+    LOW_STOCK_THRESHOLDS = {
+        "O-": 15,
+        "O+": 12,
+        "A-": 8,
+        "B-": 8,
+        "AB-": 8,
+        "A+": 10,
+        "B+": 10,
+        "AB+": 10,
+    }
     def post(self, request):
         data = request.data
         required_fields = ['request_id', 'blood_type', 'units_required', 'hospital_id']
@@ -61,11 +71,19 @@ class ValidateRequestView(APIView):
                 if item.quantity >= data['units_required']:
                     item.quantity -= data['units_required']
                     item.save()
-                    break
-                else:
-                    data['units_required'] -= item.quantity
-                    item.quantity = 0
-                    item.save()
+
+            # After allocation, check for low stock and publish an alert if necessary
+            allocated_blood_type = data['blood_type']
+            current_total_quantity = InventoryItem.objects.filter(blood_type=allocated_blood_type).aggregate(total=models.Sum('quantity'))['total'] or 0
+            low_stock_threshold = self.LOW_STOCK_THRESHOLDS.get(allocated_blood_type, 10)
+
+            if current_total_quantity < low_stock_threshold:
+                publish_event('low-stock-alerts', {
+                    'blood_type': allocated_blood_type,
+                    'current_stock': current_total_quantity,
+                    'threshold': low_stock_threshold,
+                    'timestamp': timezone.now().isoformat()
+                })
 
             response = {
                 'request_id': data['request_id'],
