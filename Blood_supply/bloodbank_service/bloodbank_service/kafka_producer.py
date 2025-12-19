@@ -1,43 +1,39 @@
 # kafka_producer.py
 import os
 import json
-import time
 from kafka import KafkaProducer
 from kafka.errors import KafkaError
 
-# Read broker address from env first, fallback to localhost:9092
-KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
+# Use Docker service name by default
+KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka:9092")
 
-def _make_producer():
-    # Configure producer with sensible defaults; you can tune retries, acks etc.
-    return KafkaProducer(
-        bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
-        value_serializer=lambda v: json.dumps(v).encode("utf-8"),
-        retries=5,           # try a few times on transient errors
-        linger_ms=5,         # small batching latency
-        acks="all",          # wait for leader+replicas (safer)
-    )
+_producer = None
 
-# Create a single producer instance for the module
-_producer = _make_producer()
+def get_producer() -> KafkaProducer:
+    """Lazy initialization of Kafka producer."""
+    global _producer
+    if _producer is None:
+        _producer = KafkaProducer(
+            bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
+            value_serializer=lambda v: json.dumps(v).encode("utf-8"),
+            retries=5,
+            linger_ms=5,
+            acks="all",
+        )
+    return _producer
 
 def publish_event(topic: str, payload: dict, timeout: float = 10.0) -> bool:
-    """
-    Publish a JSON-serializable payload to the given Kafka topic.
-    Returns True on success, False on failure.
-    """
+    """Publish a JSON message to Kafka safely."""
     try:
-        # send returns a future; get() waits for ack
-        future = _producer.send(topic, payload)
-        # block until the send is acknowledged or timeout
+        producer = get_producer()
+        future = producer.send(topic, payload)
         future.get(timeout=timeout)
-        # flush to make sure the message is out (optional; producer.flush() is global)
-        _producer.flush(0)
+        producer.flush()
+        print(f"[Kafka Producer] Successfully published to {topic}: {payload}")
         return True
     except KafkaError as e:
-        # handle/log error in real app
-        print(f"[kafka_producer] publish failed: {e}")
+        print(f"[Kafka Producer] KafkaError: {e}")
         return False
     except Exception as exc:
-        print(f"[kafka_producer] unexpected error: {exc}")
+        print(f"[Kafka Producer] Unexpected error: {exc}")
         return False
