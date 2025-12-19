@@ -13,7 +13,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         kafka_servers = getattr(settings, 'KAFKA_BOOTSTRAP_SERVERS', ['localhost:9092'])
-        topics = ['hospital_requests', 'request_status_updates', 'low_blood_alert']
+        topics = ['blood-requests', 'blood-request-validation', 'low_blood_alert']
 
         self.stdout.write(self.style.SUCCESS(f'Connecting to Kafka at {kafka_servers}...'))
 
@@ -50,7 +50,7 @@ class Command(BaseCommand):
                         self.stdout.write(self.style.NOTICE(f"Message on {topic}: {data}"))
 
                         # Handle messages
-                        if topic == 'hospital_requests':
+                        if topic == 'blood-requests':
                             message = f"New request: {data.get('quantity')} units of {data.get('blood_type')} from {data.get('hospital_name') or data.get('hospital_id')}"
                             Notification.objects.create(
                                 event_type='hospital_request',
@@ -62,7 +62,7 @@ class Command(BaseCommand):
                                 payload=data
                             )
 
-                        elif topic == 'request_status_updates':
+                        elif topic == 'blood-request-validation':
                             message = f"Request {data.get('request_id')} is {data.get('status')}"
                             Notification.objects.create(
                                 event_type='request_status',
