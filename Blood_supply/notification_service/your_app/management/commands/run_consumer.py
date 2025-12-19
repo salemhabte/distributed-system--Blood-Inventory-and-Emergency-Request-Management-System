@@ -1,7 +1,15 @@
 import json
 import logging
 import time
+import json
+import logging
+import time
 from django.core.management.base import BaseCommand
+from django.conf import settings
+from kafka import KafkaConsumer
+from your_app.models import Notification
+
+logger = logging.getLogger(__name__)
 from django.conf import settings
 from kafka import KafkaConsumer
 from your_app.models import Notification
@@ -9,6 +17,7 @@ from your_app.models import Notification
 logger = logging.getLogger(__name__)
 
 class Command(BaseCommand):
+    help = "Run Kafka consumer for notifications"
     help = "Run Kafka consumer for notifications"
 
     def handle(self, *args, **options):
