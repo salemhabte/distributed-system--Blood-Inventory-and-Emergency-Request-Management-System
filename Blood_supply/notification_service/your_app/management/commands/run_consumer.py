@@ -22,7 +22,7 @@ class Command(BaseCommand):
 
     def handle(self, *args, **options):
         kafka_servers = getattr(settings, 'KAFKA_BOOTSTRAP_SERVERS', ['localhost:9092'])
-        topics = ['blood-requests', 'blood-request-validation', 'low_blood_alert']
+        topics = ['blood-requests', 'blood-request-validation', 'low-stock-alerts']
 
         self.stdout.write(self.style.SUCCESS(f'Connecting to Kafka at {kafka_servers}...'))
 
@@ -81,7 +81,7 @@ class Command(BaseCommand):
                                 payload=data
                             )
 
-                        elif topic == 'low_blood_alert':
+                        elif topic == 'low-stock-alerts':
                             message = f"LOW BLOOD ALERT: {data.get('blood_type')} has {data.get('current_units')} units (threshold {data.get('threshold')})."
                             Notification.objects.create(
                                 event_type='low_blood',

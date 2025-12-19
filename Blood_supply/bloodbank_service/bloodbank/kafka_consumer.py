@@ -1,10 +1,10 @@
-# bloodbank/kafka_consumer.py
 import os
 import json
 import threading
 from kafka import KafkaConsumer
 from heapq import heappush, heappop
 from django.utils import timezone
+from django.db import models
 from .models import InventoryItem
 from .kafka_producer import publish_event
 
@@ -38,31 +38,11 @@ def get_consumer():
     return _consumer
 
 
-_consumer = None
-
-def get_consumer():
-    """Lazy init KafkaConsumer"""
-    global _consumer
-    if _consumer is None:
-        _consumer = KafkaConsumer(
-            TOPIC,
-            bootstrap_servers=BOOTSTRAP_SERVERS,
-            group_id="bloodbank-priority-group",
-            auto_offset_reset="earliest",
-            enable_auto_commit=True,
-            value_deserializer=lambda x: json.loads(x.decode("utf-8"))
-        )
-    return _consumer
-
 def process_request(msg):
-    available = (
-        InventoryItem.objects.filter(
-            blood_type=msg["blood_type"],
-            expiry_date__gt=timezone.now().date()
-        )
-        .aggregate(total=models.Sum("quantity"))["total"]
-        or 0
-    )
+    available = InventoryItem.objects.filter(
+        blood_type=msg['blood_type'],
+        expiry_date__gt=timezone.now().date()
+    ).aggregate(total=models.Sum('quantity'))['total'] or 0
 
     if available >= msg['units_required']:
         remaining = msg['units_required']
@@ -82,16 +62,16 @@ def process_request(msg):
                 item.save()
 
         response = {
-            "request_id": msg["request_id"],
-            "status": "APPROVED",
-            "units_allocated": msg["units_required"],
-            "allocated_at": timezone.now().isoformat()
+            'request_id': msg['request_id'],
+            'status': 'APPROVED',
+            'units_allocated': msg['units_required'],
+            'allocated_at': timezone.now().isoformat()
         }
     else:
         response = {
-            "request_id": msg["request_id"],
-            "status": "REJECTED",
-            "reason": "Insufficient stock"
+            'request_id': msg['request_id'],
+            'status': 'REJECTED',
+            'reason': 'Insufficient stock'
         }
 
     publish_event('blood-request-validation', response)
@@ -109,8 +89,8 @@ def consumer_thread():
     consumer = get_consumer()   # Kafka connects ONLY here
     for message in consumer:
         msg = message.value
-        prio = priority_map.get(msg.get("priority", "NORMAL"), 2)
-        submitted_at = msg.get("submitted_at", "")
+        prio = priority_map.get(msg.get('priority', 'NORMAL'), 2)
+        submitted_at = msg.get('submitted_at', '')
         heappush(priority_queue, (prio, submitted_at, msg))
         print(
             f"[Kafka Consumer] Received request: "
@@ -126,4 +106,3 @@ def start_consumer_threads():
     threading.Thread(target=consumer_thread, daemon=True).start()
     threading.Thread(target=processor_thread, daemon=True).start()
     print("[Kafka] Priority consumer threads started")
-
