@@ -22,9 +22,9 @@ class Command(BaseCommand):
             consumer = KafkaConsumer(
                 *topics,
                 bootstrap_servers=kafka_servers,
-                auto_offset_reset='earliest',
+                auto_offset_reset='earliest', # Gets everything from the start
                 enable_auto_commit=True,
-                group_id='notification_service_group'
+                group_id=None  # REMOVE THE GROUP ID TEMPORARILY
             )
 
             self.stdout.write(self.style.SUCCESS(
