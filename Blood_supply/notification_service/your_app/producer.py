@@ -10,8 +10,8 @@ producer = KafkaProducer(
 # Example message
 message = {
     "request_id": "REQ123",
-    "hospital_name": "CityHospital",
-    "blood_type": "O+",
+    "hospital_name": "math",
+    "blood_type": "A+",
     "quantity": 5
 }
 
