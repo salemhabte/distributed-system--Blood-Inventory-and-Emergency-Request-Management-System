@@ -24,6 +24,11 @@ def api_root(request):
         "inventory": request.build_absolute_uri('inventory-list'),
     })
 class PatientCreateView(APIView):
+    def get(self, request):
+        patients = Patient.objects.all()
+        serializer = PatientResponseSerializer(patients, many=True)
+        return Response(serializer.data)
+
     def post(self, request):
         serializer = PatientCreateSerializer(data=request.data)
         if serializer.is_valid():
