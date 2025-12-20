@@ -1,5 +1,36 @@
 services:
 
+  mysql-auth:
+    image: mysql:8.0
+    container_name: mysql-auth
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: auth_db
+      MYSQL_USER: auth_user
+      MYSQL_PASSWORD: auth_pass
+    ports:
+      - "3307:3306"  # Different host port to avoid conflict
+    volumes:
+      - mysql_auth_data:/var/lib/mysql
+    restart: unless-stopped
+    command: --default-authentication-plugin=mysql_native_password
+
+  auth-service:
+    build: ./auth_service
+    container_name: auth-service
+    ports:
+      - "8003:8000"   # Auth service → localhost:8003
+    environment:
+      - MYSQL_DB=auth_db
+      - MYSQL_USER=auth_user
+      - MYSQL_PASSWORD=auth_pass
+      - MYSQL_HOST=mysql-auth
+      - MYSQL_PORT=3306
+      - DJANGO_DEBUG=True
+    depends_on:
+      - mysql-auth
+    restart: unless-stopped
+
   zookeeper:
     image: confluentinc/cp-zookeeper:7.6.0
     container_name: zookeeper
@@ -49,6 +80,7 @@ services:
       - POSTGRES_HOST=postgres-hospital
       - POSTGRES_PORT=5432
       - DJANGO_DEBUG=True
+      - SECRET_KEY=django-insecure-auth-secret-key-change-in-production
     depends_on:
       - kafka
       - postgres-hospital
@@ -90,3 +122,4 @@ services:
 
 volumes:
   postgres_hospital_data:
+  mysql_auth_data:
