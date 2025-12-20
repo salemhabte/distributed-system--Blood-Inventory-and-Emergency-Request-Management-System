@@ -34,7 +34,7 @@ class InventoryView(APIView):
             low_stock_threshold = self.LOW_STOCK_THRESHOLDS.get(blood_type, 10) # Default to 10 if blood type not found
 
             if current_total_quantity < low_stock_threshold:
-                publish_event('low-stock-alerts', {
+                publish_event('inventory.lowstock', {
                     'blood_type': blood_type,
                     'current_stock': current_total_quantity,
                     'threshold': low_stock_threshold,
@@ -78,7 +78,7 @@ class ValidateRequestView(APIView):
             low_stock_threshold = self.LOW_STOCK_THRESHOLDS.get(allocated_blood_type, 10)
 
             if current_total_quantity < low_stock_threshold:
-                publish_event('low-stock-alerts', {
+                publish_event('inventory.lowstock', {
                     'blood_type': allocated_blood_type,
                     'current_stock': current_total_quantity,
                     'threshold': low_stock_threshold,

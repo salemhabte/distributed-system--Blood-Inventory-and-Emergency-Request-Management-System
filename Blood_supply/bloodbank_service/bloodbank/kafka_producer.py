@@ -1,6 +1,7 @@
 # bloodbank/kafka_producer.py
 import os
 import json
+import time
 from kafka import KafkaProducer
 from kafka.errors import KafkaError
 
@@ -13,13 +14,26 @@ producer = KafkaProducer(
     acks='all'
 )
 
-def publish_event(topic: str, payload: dict):
-    try:
-        future = producer.send(topic, payload)
-        future.get(timeout=10)  # Wait for ack
-        producer.flush()
-        print(f"[Kafka Producer] Successfully published to {topic}: {payload}")
-    except KafkaError as e:
-        print(f"[Kafka Producer] Failed to publish to {topic}: {e}")
-    except Exception as e:
-        print(f"[Kafka Producer] Unexpected error: {e}")
+def publish_event(topic: str, payload: dict, max_retries: int = 3, retry_delay_seconds: int = 2):
+    for attempt in range(max_retries):
+        try:
+            future = producer.send(topic, payload)
+            record_metadata = future.get(timeout=10)  # Wait for ack
+            producer.flush()
+            print(f"[Kafka Producer] Successfully published to {topic} on attempt {attempt + 1}: {payload}")
+            print(f"  Partition: {record_metadata.partition}, Offset: {record_metadata.offset}")
+            return # Exit on success
+        except KafkaError as e:
+            print(f"[Kafka Producer] Attempt {attempt + 1} failed for {topic}: {e}")
+            if attempt < max_retries - 1:
+                print(f"  Retrying in {retry_delay_seconds} seconds...")
+                time.sleep(retry_delay_seconds)
+            else:
+                print(f"[Kafka Producer] All {max_retries} attempts failed for {topic}.")
+        except Exception as e:
+            print(f"[Kafka Producer] Unexpected error on attempt {attempt + 1}: {e}")
+            if attempt < max_retries - 1:
+                print(f"  Retrying in {retry_delay_seconds} seconds...")
+                time.sleep(retry_delay_seconds)
+            else:
+                print(f"[Kafka Producer] All {max_retries} attempts failed for {topic} due to unexpected error.")
