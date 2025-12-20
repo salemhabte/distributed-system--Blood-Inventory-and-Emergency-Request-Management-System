@@ -1,57 +1,44 @@
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
-from .models import Notification
-from .serializers import NotificationSerializer
+from .models import BloodRequest, BloodRequestValidation, LowStockAlert
+from .serializers import BloodRequestSerializer, BloodRequestValidationSerializer, LowStockAlertSerializer
+from django.db import connection
 
-
-# Hospital sends requests → fetched by Blood Bank
+# API 1: Get all blood requests from 'blood-requests' topic
 @api_view(['GET'])
-def bloodbank_requests(request):
-    qs = Notification.objects.filter(event_type='hospital_request', target='blood_bank').order_by('-created_at')
-    serializer = NotificationSerializer(qs, many=True)
-    return Response(serializer.data)
+def get_blood_requests(request):
+    connection.close()
+    """Get all blood requests from blood-requests topic (stored in BloodRequest table)"""
+    qs = BloodRequest.objects.all().order_by('-created_at')
+    serializer = BloodRequestSerializer(qs, many=True)
+    return Response({
+        'count': qs.count(),
+        'data': serializer.data
+    })
 
 
-# Low blood alerts → fetched by Blood Bank
+# API 2: Get all blood request validations from 'blood-request-validation' topic
 @api_view(['GET'])
-def bloodbank_low_blood(request):
-    qs = Notification.objects.filter(event_type='low_blood', target='blood_bank').order_by('-created_at')
-    serializer = NotificationSerializer(qs, many=True)
-    return Response(serializer.data)
+def get_blood_request_validations(request):
+    connection.close()
+    """Get all blood request validations from blood-request-validation topic (stored in BloodRequestValidation table)"""
+    qs = BloodRequestValidation.objects.all().order_by('-created_at')
+    serializer = BloodRequestValidationSerializer(qs, many=True)
+    return Response({
+        'count': qs.count(),
+        'data': serializer.data
+    })
 
 
-# Low blood alerts → fetched by Hospital
+# API 3: Get all low stock alerts from 'low-stock-alerts' topic
 @api_view(['GET'])
-def hospital_low_blood(request):
-    hospital_name = request.GET.get('hospital_name')
-    if not hospital_name:
-        return Response({'error': 'hospital_name is required'}, status=status.HTTP_400_BAD_REQUEST)
-
-    qs = Notification.objects.filter(event_type='low_blood', target='hospital', hospital_name=hospital_name).order_by('-created_at')
-    serializer = NotificationSerializer(qs, many=True)
-    return Response(serializer.data)
-
-
-# Blood requests approved → fetched by Hospital
-@api_view(['GET'])
-def hospital_blood_request_approved(request):
-    hospital_name = request.GET.get('hospital_name')
-    if not hospital_name:
-        return Response({'error': 'hospital_name is required'}, status=status.HTTP_400_BAD_REQUEST)
-
-    qs = Notification.objects.filter(event_type='request_status', target='hospital', hospital_name=hospital_name, payload__status='approved').order_by('-created_at')
-    serializer = NotificationSerializer(qs, many=True)
-    return Response(serializer.data)
-
-
-# Blood requests rejected → fetched by Hospital
-@api_view(['GET'])
-def hospital_blood_request_rejected(request):
-    hospital_name = request.GET.get('hospital_name')
-    if not hospital_name:
-        return Response({'error': 'hospital_name is required'}, status=status.HTTP_400_BAD_REQUEST)
-
-    qs = Notification.objects.filter(event_type='request_status', target='hospital', hospital_name=hospital_name, payload__status='rejected').order_by('-created_at')
-    serializer = NotificationSerializer(qs, many=True)
-    return Response(serializer.data)
+def get_low_stock_alerts(request):
+    connection.close()
+    """Get all low stock alerts from low-stock-alerts topic (stored in LowStockAlert table)"""
+    qs = LowStockAlert.objects.all().order_by('-created_at')
+    serializer = LowStockAlertSerializer(qs, many=True)
+    return Response({
+        'count': qs.count(),
+        'data': serializer.data
+    })
