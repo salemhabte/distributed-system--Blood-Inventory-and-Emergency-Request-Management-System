@@ -72,9 +72,9 @@ class ExternalAuthService:
         return permissions
 
 
-class ExternalJWTAuthentication(authentication.BaseAuthentication):
+class LocalJWTAuthentication(authentication.BaseAuthentication):
     """
-    Custom JWT authentication that validates tokens against external auth service
+    Simple JWT authentication that validates tokens locally
     """
 
     def authenticate(self, request):
@@ -100,47 +100,61 @@ class ExternalJWTAuthentication(authentication.BaseAuthentication):
 
     def authenticate_credentials(self, token):
         """
-        Try to authenticate the given credentials. If authentication is successful,
-        return a user object and token. If unsuccessful, throw an error.
+        Validate JWT token locally and create a user object
         """
         try:
-            # First try to decode token locally (for basic validation)
+            # Decode and validate JWT token locally
             access_token = AccessToken(token)
 
-            # Then verify with auth service
-            user_data, is_valid = ExternalAuthService.verify_token(token)
+            # Extract user data from token payload
+            user_id = access_token.payload.get('user_id')
+            username = access_token.payload.get('username')
+            email = access_token.payload.get('email', '')
+            first_name = access_token.payload.get('first_name', '')
+            last_name = access_token.payload.get('last_name', '')
+            role = access_token.payload.get('role', 'hospital')
+            organization_name = access_token.payload.get('organization_name', '')
 
-            if not is_valid or not user_data:
-                raise exceptions.AuthenticationFailed('Token is invalid or expired')
+            if not user_id or not username:
+                raise exceptions.AuthenticationFailed('Token does not contain required user data')
 
-            # Create a pseudo-user object with the data from auth service
-            user = self._create_user_from_auth_data(user_data, token)
+            # Create a pseudo-user object
+            user = self._create_user_from_token_data({
+                'id': user_id,
+                'username': username,
+                'email': email,
+                'first_name': first_name,
+                'last_name': last_name,
+                'role': role,
+                'organization_name': organization_name
+            }, token)
 
             return (user, token)
 
         except Exception as e:
-            raise exceptions.AuthenticationFailed('Token is invalid or expired')
+            raise exceptions.AuthenticationFailed(f'Token is invalid or expired: {str(e)}')
 
-    def _create_user_from_auth_data(self, user_data, token):
+    def _create_user_from_token_data(self, user_data, token):
         """
-        Create a pseudo-user object from auth service data
+        Create a pseudo-user object from token data
         """
         from django.contrib.auth.models import User
 
-        # Try to get or create a local user representation
-        user, created = User.objects.get_or_create(
+        # Create a pseudo-user object with data from token
+        user = User(
+            id=user_data['id'],
             username=user_data['username'],
-            defaults={
-                'email': user_data['email'],
-                'first_name': user_data['first_name'],
-                'last_name': user_data['last_name'],
-            }
+            email=user_data['email'],
+            first_name=user_data['first_name'],
+            last_name=user_data['last_name'],
+            is_active=True,
+            is_staff=False,
+            is_superuser=False
         )
 
-        # Set additional attributes from auth service
-        user.role = user_data.get('role')
-        user.organization_name = user_data.get('organization_name')
-        user.is_verified = user_data.get('is_verified', False)
+        # Set additional attributes
+        user.role = user_data.get('role', 'hospital')
+        user.organization_name = user_data.get('organization_name', '')
         user.auth_token = token
 
         return user

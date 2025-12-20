@@ -11,7 +11,7 @@ import environ
 env = environ.Env(
     # Default values
     DEBUG=(bool, True),
-    SECRET_KEY=(str, "django-insecure-nz&!&-y2i0cix2m-ejzd)ce6%4qd_f#9y0m77ljb01pxd^)7=x"),
+    SECRET_KEY=(str, "django-insecure-auth-secret-key-change-in-production"),
     POSTGRES_DB=(str, "hospital_db"),
     POSTGRES_USER=(str, "hospital_user"),
     POSTGRES_PASSWORD=(str, "hospital_pass"),
@@ -115,7 +115,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # REST Framework configuration
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'rest_framework_simplejwt.authentication.JWTAuthentication',
+        'hospital_app.authentication.LocalJWTAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',

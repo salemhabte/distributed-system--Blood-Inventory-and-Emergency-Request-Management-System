@@ -27,8 +27,18 @@ class RegisterView(generics.CreateAPIView):
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
 
-        # Generate tokens
+        # Generate tokens with custom claims
         refresh = RefreshToken.for_user(user)
+
+        # Add custom claims to refresh token
+        refresh['username'] = user.username
+        refresh['email'] = user.email
+        refresh['first_name'] = user.first_name
+        refresh['last_name'] = user.last_name
+        refresh['role'] = getattr(user, 'role', 'hospital')
+        refresh['organization_name'] = getattr(user, 'organization_name', '')
+
+        # Access token inherits claims from refresh token
         access_token = str(refresh.access_token)
 
         response_data = {
@@ -54,8 +64,18 @@ class LoginView(APIView):
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data['user']
 
-        # Generate tokens
+        # Generate tokens with custom claims
         refresh = RefreshToken.for_user(user)
+
+        # Add custom claims to refresh token
+        refresh['username'] = user.username
+        refresh['email'] = user.email
+        refresh['first_name'] = user.first_name
+        refresh['last_name'] = user.last_name
+        refresh['role'] = getattr(user, 'role', 'hospital')
+        refresh['organization_name'] = getattr(user, 'organization_name', '')
+
+        # Access token inherits claims from refresh token
         access_token = str(refresh.access_token)
 
         response_data = {

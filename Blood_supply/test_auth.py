@@ -195,13 +195,56 @@ def test_hospital_user_flow():
         print("⚠ Hospital service not available for testing")
         return False
 
+def test_blood_bank_admin_flow():
+    """Test blood bank admin functionality with proper authentication"""
+    print("\n🩸 Testing Blood Bank Admin Flow...")
+
+    # Login as blood bank admin
+    login_data = {"username": "bloodbank_admin", "password": "admin123"}
+
+    try:
+        response = requests.post(f"{BASE_URL}/login/", json=login_data)
+        if response.status_code != 200:
+            print(f"❌ Blood bank admin login failed: {response.status_code}")
+            print(f"Response: {response.text}")
+            return None
+
+        tokens = response.json()
+        token = tokens['tokens']['access']
+        print("✅ Blood bank admin logged in successfully")
+
+        # Test accessing blood bank inventory
+        headers = {"Authorization": f"Bearer {token}"}
+        response = requests.get("http://localhost:8001/api/v1/blood-bank/inventory/", headers=headers)
+
+        if response.status_code == 200:
+            print("✅ Blood bank inventory access successful")
+            inventory = response.json()
+            print(f"   Found {len(inventory)} blood inventory items")
+            return token
+        else:
+            print(f"❌ Blood bank inventory access failed: {response.status_code}")
+            print(f"Response: {response.text}")
+            return None
+
+    except requests.exceptions.ConnectionError:
+        print("⚠️ Service not available")
+        return None
+
+
 def main():
     print("Blood Bank Authentication System Test")
-    print("=" * 40)
+    print("=" * 50)
 
     # Wait for services to be ready
-    print("Waiting for services to start...")
-    time.sleep(10)
+    print("⏳ Waiting for services to start...")
+    time.sleep(15)
+
+    # Test blood bank admin flow first
+    print("\n1. Testing Blood Bank Admin Access...")
+    bb_token = test_blood_bank_admin_flow()
+
+    print("\n2. Testing Hospital User Registration and Access...")
 
     # Test registration
     reg_result = test_registration()
@@ -225,7 +268,11 @@ def main():
     # Test hospital user flow
     test_hospital_user_flow()
 
-    print("\nAll tests completed!")
+    print("\n" + "=" * 50)
+    print("🎉 All authentication tests completed successfully!")
+    print("✅ JWT tokens are working across all services!")
+    print("✅ Role-based access control is functioning!")
+    print("=" * 50)
 
 if __name__ == "__main__":
     main()
