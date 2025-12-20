@@ -1,0 +1,61 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgresql-hospital-pvc
+  labels:
+    app: postgresql-hospital
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgresql-hospital-deployment
+  labels:
+    app: postgresql-hospital
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgresql-hospital
+  template:
+    metadata:
+      labels:
+        app: postgresql-hospital
+    spec:
+      containers:
+      - name: postgresql-hospital
+        image: postgres:13
+        ports:
+        - containerPort: 5432
+        env:
+        - name: POSTGRES_DB
+          value: "hospital_db"
+        - name: POSTGRES_USER
+          value: "hospital_user"
+        - name: POSTGRES_PASSWORD
+          value: "hospital_password"
+        volumeMounts:
+        - name: postgresql-hospital-storage
+          mountPath: /var/lib/postgresql/data
+      volumes:
+      - name: postgresql-hospital-storage
+        persistentVolumeClaim:
+          claimName: postgresql-hospital-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgresql-hospital-service
+  labels:
+    app: postgresql-hospital
+spec:
+  ports:
+    - port: 5432
+      targetPort: 5432
+  selector:
+    app: postgresql-hospital

@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bloodbank-service-deployment
+  labels:
+    app: bloodbank-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bloodbank-service
+  template:
+    metadata:
+      labels:
+        app: bloodbank-service
+    spec:
+      containers:
+      - name: bloodbank-service
+        image: bloodbank_service:latest # This image needs to be built locally
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8000
+        env:
+        - name: KAFKA_BOOTSTRAP_SERVERS
+          value: "kafka-service:29092" # Connects to our Kafka service in Kubernetes
+        - name: DJANGO_SETTINGS_MODULE
+          value: "bloodbank_service.settings"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bloodbank-service
+  labels:
+    app: bloodbank-service
+spec:
+  type: ClusterIP # Use ClusterIP for internal communication within the cluster
+  ports:
+    - port: 8000
+      targetPort: 8000
+  selector:
+    app: bloodbank-service

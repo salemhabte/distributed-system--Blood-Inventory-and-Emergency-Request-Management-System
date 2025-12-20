@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hospital-service-deployment
+  labels:
+    app: hospital-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hospital-service
+  template:
+    metadata:
+      labels:
+        app: hospital-service
+    spec:
+      containers:
+      - name: hospital-service
+        image: hospital_service:latest # This image needs to be built locally
+        imagePullPolicy: Never
+        ports:
+        - containerPort: 8000
+        env:
+        - name: KAFKA_BOOTSTRAP_SERVERS
+          value: "kafka-service:29092"
+        - name: POSTGRES_HOST
+          value: "postgresql-hospital-service"
+        - name: POSTGRES_DB
+          value: "hospital_db"
+        - name: POSTGRES_USER
+          value: "hospital_user"
+        - name: POSTGRES_PASSWORD
+          value: "hospital_password"
+        - name: DJANGO_SETTINGS_MODULE
+          value: "hospital_service.settings"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hospital-service
+  labels:
+    app: hospital-service
+spec:
+  type: ClusterIP # Use ClusterIP for internal communication within the cluster
+  ports:
+    - port: 8000
+      targetPort: 8000
+  selector:
+    app: hospital-service
