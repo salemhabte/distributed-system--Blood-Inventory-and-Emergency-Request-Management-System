@@ -5,10 +5,11 @@ Demo script showing how to use the Blood Bank Authentication System
 
 import requests
 import json
+import random
 
 BASE_URL = "http://localhost:8003/api/auth"
-BLOOD_BANK_URL = "http://localhost:8001/api/bloodbank"
-HOSPITAL_URL = "http://localhost:8000/api/hospital"
+BLOOD_BANK_URL = "http://localhost:8001/api/v1/blood-bank"
+HOSPITAL_URL = "http://localhost:8000/api/v1/hospital"
 
 def demo_blood_bank_admin():
     """Demonstrate blood bank admin functionality"""
@@ -46,6 +47,7 @@ def demo_blood_bank_admin():
         else:
             print(f"❌ Failed to get inventory: {response.status_code}")
 
+        unique_suffix = random.randint(1000, 9999)
         # Add blood batch (blood bank admin only)
         print("\n3. Adding blood batch (Blood Bank Admin only)...")
         batch_data = {
@@ -53,7 +55,7 @@ def demo_blood_bank_admin():
             "quantity": 10,
             "donation_date": "2025-12-20",
             "expiry_date": "2026-12-20",
-            "batch_number": "BB20251220A001",
+            "batch_number": f"BB20251220A{unique_suffix}",
             "storage_location": "Refrigerator A1"
         }
 
@@ -62,6 +64,7 @@ def demo_blood_bank_admin():
             print("✅ Blood batch added successfully")
         else:
             print(f"❌ Failed to add batch: {response.status_code}")
+            print(f"   Reason: {response.text}")
 
     except requests.exceptions.ConnectionError:
         print("⚠️ Blood bank service not available")
@@ -75,10 +78,13 @@ def demo_hospital_user():
     print("=" * 60)
 
     # Register hospital user
+    # Register hospital user
     print("1. Registering hospital user...")
+    suffix = random.randint(1000, 9999)
+    hospital_username = f"demo_hospital_{suffix}"
     reg_data = {
-        "username": "demo_hospital",
-        "email": "demo@hospital.com",
+        "username": hospital_username,
+        "email": f"demo{suffix}@hospital.com",
         "password": "demopass123",
         "password_confirm": "demopass123",
         "first_name": "Dr. Demo",
@@ -100,7 +106,7 @@ def demo_hospital_user():
     # Login
     print("\n2. Logging in hospital user...")
     login_data = {
-        "username": "demo_hospital",
+        "username": hospital_username,
         "password": "demopass123"
     }
 
@@ -111,8 +117,9 @@ def demo_hospital_user():
 
     tokens = response.json()
     token = tokens['tokens']['access']
+    print(token)
     print("✅ Hospital user logged in successfully")
-
+     
     headers = {"Authorization": f"Bearer {token}"}
 
     # Create patient
@@ -124,6 +131,7 @@ def demo_hospital_user():
             "date_of_birth": "1990-03-15",
             "gender": "F",
             "blood_type": "A+",
+            "age": 33,  # Added required field
             "phone_number": "+1555222222",
             "address": "456 Patient St",
             "emergency_contact_name": "Bob Johnson",
@@ -142,9 +150,8 @@ def demo_hospital_user():
                 "patient": str(patient_id),
                 "blood_type": "A+",
                 "units_required": 3,
-                "priority": "MEDIUM",
-                "reason": "Scheduled surgery",
-                "requested_by": "Dr. Demo Hospital"
+                "priority": "URGENT",
+                "notes": "Scheduled surgery"
             }
 
             response = requests.post(f"{HOSPITAL_URL}/blood-requests", json=request_data, headers=headers)
@@ -156,6 +163,7 @@ def demo_hospital_user():
                 print(f"   Units Required: {blood_request['units_required']}")
             else:
                 print(f"❌ Failed to create blood request: {response.status_code}")
+                print(f"   Reason: {response.text}")
 
             # View all blood requests
             print("\n5. Viewing all blood requests...")
@@ -168,6 +176,7 @@ def demo_hospital_user():
 
         else:
             print(f"❌ Failed to create patient: {response.status_code}")
+            print(f"   Reason: {response.text}")
 
     except requests.exceptions.ConnectionError:
         print("⚠️ Hospital service not available")
