@@ -5,3 +5,4 @@ kafka-python==2.0.2
 django-environ==0.11.2
 python-dateutil==2.8.2
 requests==2.31.0
+django-cors-headers==4.4.0

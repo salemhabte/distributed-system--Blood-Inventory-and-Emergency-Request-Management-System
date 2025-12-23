@@ -33,12 +33,17 @@ class PatientCreateView(generics.CreateAPIView):
     permission_classes = [IsAuthenticated, EmergencyRequestPermissions]
 
     def create(self, request, *args, **kwargs):
+        print(f"DEBUG: Hospital Portal - Creating patient with data: {request.data}")
         serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        patient = serializer.save()
-
-        response_serializer = PatientResponseSerializer(patient)
-        return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+        try:
+            serializer.is_valid(raise_exception=True)
+            patient = serializer.save()
+            print(f"DEBUG: Hospital Portal - Patient created successfully: {patient.patient_id}")
+            response_serializer = PatientResponseSerializer(patient)
+            return Response(response_serializer.data, status=status.HTTP_201_CREATED)
+        except Exception as e:
+            print(f"DEBUG: Hospital Portal - Patient creation failed: {str(e)}")
+            raise e
 
 class PatientDetailView(generics.RetrieveUpdateAPIView):
     """
@@ -129,10 +134,6 @@ class HospitalInventoryListView(generics.ListAPIView):
     permission_classes = [IsAuthenticated, ReadOnlyForBloodBank]
 
     def get_queryset(self):
-        # Ensure all 8 blood types exist
-        blood_types = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
-        for bt in blood_types:
-            HospitalInventory.objects.get_or_create(blood_type=bt, defaults={'quantity': 0})
         return HospitalInventory.objects.all()
 
 class HospitalInventoryUpdateView(generics.UpdateAPIView):

@@ -26,11 +26,13 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'rest_framework_simplejwt',
+    'corsheaders',
     'bloodbank',  # Your bloodbank app
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -146,3 +148,6 @@ SIMPLE_JWT = {
 
 # External Auth Service URL
 AUTH_SERVICE_URL = 'http://auth-service:8000'
+
+# CORS Settings
+CORS_ALLOW_ALL_ORIGINS = True  # For development
