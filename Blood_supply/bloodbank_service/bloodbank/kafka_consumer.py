@@ -20,124 +20,60 @@ priority_queue = []
 
 _consumer = None
 
-def get_consumer(max_retries=10, retry_delay=5):
-    """Lazy init KafkaConsumer with retry logic"""
+def get_consumer():
+    """Get or create KafkaConsumer"""
     global _consumer
     if _consumer is None:
-        for attempt in range(max_retries):
-            try:
-                _consumer = KafkaConsumer(
-                    TOPIC,
-                    bootstrap_servers=BOOTSTRAP_SERVERS,
-                    group_id="bloodbank-priority-group",
-                    auto_offset_reset="earliest",
-                    enable_auto_commit=True,
-                    value_deserializer=lambda x: json.loads(x.decode("utf-8")),
-                    consumer_timeout_ms=1000  # Timeout for polling
-                )
-                print(f"[Kafka Consumer] Successfully connected to Kafka at {BOOTSTRAP_SERVERS}")
-                return _consumer
-            except NoBrokersAvailable as e:
-                if attempt < max_retries - 1:
-                    wait_time = retry_delay * (attempt + 1)
-                    print(f"[Kafka Consumer] Kafka not available (attempt {attempt + 1}/{max_retries}). Retrying in {wait_time}s...")
-                    time.sleep(wait_time)
-                else:
-                    print(f"[Kafka Consumer] Failed to connect to Kafka after {max_retries} attempts: {e}")
-                    raise
-            except Exception as e:
-                print(f"[Kafka Consumer] Unexpected error connecting to Kafka: {e}")
-                if attempt < max_retries - 1:
-                    time.sleep(retry_delay)
-                else:
-                    raise
+        try:
+            _consumer = KafkaConsumer(
+                TOPIC,
+                bootstrap_servers=BOOTSTRAP_SERVERS,
+                group_id="bloodbank-priority-group",
+                auto_offset_reset="earliest",
+                enable_auto_commit=True,
+                value_deserializer=lambda x: json.loads(x.decode("utf-8")),
+                consumer_timeout_ms=1000  # Timeout for polling
+            )
+            print(f"[Kafka Consumer] Successfully connected to Kafka at {BOOTSTRAP_SERVERS}")
+        except Exception as e:
+            print(f"[Kafka Consumer] Connection failed: {e}")
+            _consumer = None
+            raise e
     return _consumer
 
-def process_request(msg):
-    """Process blood request from queue"""
-    try:
-        available = (
-            InventoryItem.objects.filter(
-                blood_type=msg["blood_type"],
-                expiry_date__gt=timezone.now().date()
-            )
-            .aggregate(total=models.Sum("quantity"))["total"]
-            or 0
-        )
-    except Exception as e:
-        print(f"[Kafka Consumer] Error calculating available blood: {e}")
-        available = 0
-
-    if available >= msg["units_required"]:
-        remaining = msg["units_required"]
-        for item in InventoryItem.objects.filter(blood_type=msg["blood_type"]).order_by("expiry_date"):
-            if remaining <= 0:
-                break
-            if item.quantity >= remaining:
-                item.quantity -= remaining
-                item.save()
-                remaining = 0
-            else:
-                remaining -= item.quantity
-                item.quantity = 0
-                item.save()
-
-        response = {
-            "request_id": msg["request_id"],
-            "status": "APPROVED",
-            "units_allocated": msg["units_required"],
-            "allocated_at": timezone.now().isoformat()
-        }
-    else:
-        response = {
-            "request_id": msg["request_id"],
-            "status": "REJECTED",
-            "reason": "Insufficient stock"
-        }
-
-    try:
-        publish_event("blood-request-validation", response)
-        
-        # Check for low stock after processing request
-        from .inventory_utils import check_and_alert_low_stock
-        check_and_alert_low_stock(msg["blood_type"])
-    except Exception as e:
-        print(f"[Kafka Consumer] Error publishing validation response: {e}")
-
-def processor_thread():
-    while True:
-        if priority_queue:
-            _, _, msg = heappop(priority_queue)
-            process_request(msg)
-        threading.Event().wait(0.5)
-
 def consumer_thread():
-    """Consumer thread with retry logic"""
-    consumer = None
-    while consumer is None:
+    """Consumer thread with robust retry logic"""
+    global _consumer
+    print("[Kafka Consumer] Consumer thread started.")
+    
+    while True:
         try:
             consumer = get_consumer()
+            if consumer:
+                for message in consumer:
+                    try:
+                        msg = message.value
+                        prio = priority_map.get(msg.get("priority", "NORMAL"), 2)
+                        submitted_at = msg.get("submitted_at", "")
+                        heappush(priority_queue, (prio, submitted_at, msg))
+                        print(f"[Kafka Consumer] Received request: {msg['request_id']} (priority: {msg.get('priority')})")
+                    except Exception as e:
+                        print(f"[Kafka Consumer] Error processing message: {e}")
+            else:
+                 # Should not happen if get_consumer raises, but safe check
+                 time.sleep(5)
+
         except Exception as e:
-            print(f"[Kafka Consumer] Failed to initialize consumer: {e}. Retrying in 10 seconds...")
-            time.sleep(10)
-    
-    print("[Kafka Consumer] Consumer thread started, listening for messages...")
-    try:
-        for message in consumer:
-            try:
-                msg = message.value
-                prio = priority_map.get(msg.get("priority", "NORMAL"), 2)
-                submitted_at = msg.get("submitted_at", "")
-                heappush(priority_queue, (prio, submitted_at, msg))
-                print(f"[Kafka Consumer] Received request: {msg['request_id']} (priority: {msg.get('priority')})")
-            except Exception as e:
-                print(f"[Kafka Consumer] Error processing message: {e}")
-    except Exception as e:
-        print(f"[Kafka Consumer] Consumer thread error: {e}. Restarting...")
-        global _consumer
-        _consumer = None
-        # Restart the thread
-        threading.Thread(target=consumer_thread, daemon=True).start()
+            print(f"[Kafka Consumer] Connection/Consumption error: {e}. Retrying in 5 seconds...")
+            # Reset consumer to force reconnection
+            if _consumer:
+                try:
+                    _consumer.close()
+                except:
+                    pass
+            _consumer = None
+            time.sleep(5)
+
 
 def start_consumer_threads():
     """Start consumer and processor threads lazily with error handling"""

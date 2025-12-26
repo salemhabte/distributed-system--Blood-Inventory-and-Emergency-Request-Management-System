@@ -1,5 +1,19 @@
 services:
 
+  nginx:
+    image: nginx:latest
+    container_name: nginx-proxy
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - auth-service
+      - hospital-service
+      - bloodbank-service
+      - notification-service
+    restart: always
+
   mysql-auth:
     image: mysql:8.0
     container_name: mysql-auth
@@ -9,17 +23,22 @@ services:
       MYSQL_USER: auth_user
       MYSQL_PASSWORD: auth_pass
     ports:
-      - "3307:3306"  # Different host port to avoid conflict
+      - "3307:3306" # Different host port to avoid conflict
     volumes:
       - mysql_auth_data:/var/lib/mysql
     restart: unless-stopped
     command: --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   auth-service:
     build: ./auth_service
     container_name: auth-service
     ports:
-      - "8003:8000"   # Auth service → localhost:8003
+      - "8003:8000" # Auth service → localhost:8003
     environment:
       - MYSQL_DB=auth_db
       - MYSQL_USER=auth_user
@@ -28,7 +47,8 @@ services:
       - MYSQL_PORT=3306
       - DJANGO_DEBUG=True
     depends_on:
-      - mysql-auth
+      mysql-auth:
+        condition: service_healthy
     restart: unless-stopped
 
   zookeeper:
@@ -39,12 +59,18 @@ services:
       ZOOKEEPER_TICK_TIME: 2000
     ports:
       - "2181:2181"
+    healthcheck:
+      test: echo srvr | nc localhost 2181 || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
 
   kafka:
     image: wurstmeister/kafka:latest
     container_name: kafka
     ports:
-      - "9092:9092"  # External access from host (e.g., Kafdrop, external tools)
+      - "9092:9092" # External access from host (e.g., Kafdrop, external tools)
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
@@ -52,9 +78,16 @@ services:
       KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:29092,EXTERNAL://localhost:9092
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
-      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'  # Auto-creates topics on first publish
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true' # Auto-creates topics on first publish
     depends_on:
-      - zookeeper
+      zookeeper:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "kafka-topics.sh", "--list", "--zookeeper", "zookeeper:2181" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
 
   kafdrop:
     image: obsidiandynamics/kafdrop
@@ -65,8 +98,9 @@ services:
     ports:
       - 9000:9000
     depends_on:
-      - kafka
-      
+      kafka:
+        condition: service_healthy
+
   hospital-service:
     build: ./hospital_service
     container_name: hospital-service
@@ -82,35 +116,39 @@ services:
       - DJANGO_DEBUG=True
       - SECRET_KEY=django-insecure-auth-secret-key-change-in-production
     depends_on:
-      - kafka
-      - postgres-hospital
+      kafka:
+        condition: service_healthy
+      postgres-hospital:
+        condition: service_healthy
     restart: unless-stopped
 
   bloodbank-service:
     build: ./bloodbank_service
     container_name: bloodbank-service
     ports:
-      - "8001:8000"   # Bloodbank → localhost:8001
+      - "8001:8000" # Bloodbank → localhost:8001
     environment:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
       - AUTH_SERVICE_URL=http://auth-service:8000
-      - LOW_STOCK_THRESHOLD=10  # Alert when stock <= 10 units
+      - LOW_STOCK_THRESHOLD=10 # Alert when stock <= 10 units
     depends_on:
       kafka:
-        condition: service_started
+        condition: service_healthy
       auth-service:
         condition: service_started
+    restart: unless-stopped
 
   notification-service:
     build: ./notification_service
     container_name: notification-service
     ports:
-      - "8002:8000"   # Notification → localhost:8002
+      - "8002:8000" # Notification → localhost:8002
     environment:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
     depends_on:
-      - kafka
-
+      kafka:
+        condition: service_healthy
+    restart: unless-stopped
 
   postgres-hospital:
     image: postgres:15
@@ -120,10 +158,15 @@ services:
       POSTGRES_USER: hospital_user
       POSTGRES_PASSWORD: hospital_pass
     ports:
-      - "5433:5432"  # Different host port to avoid conflict
+      - "5433:5432" # Different host port to avoid conflict
     volumes:
       - postgres_hospital_data:/var/lib/postgresql/data
     restart: unless-stopped
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U hospital_user -d hospital_db" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
 volumes:
   postgres_hospital_data:
