@@ -1,8 +1,9 @@
 #!/bin/bash
+set -e
 
 # Wait for MySQL to be ready
 echo "Waiting for MySQL to be ready..."
-python -c "
+python3 -c "
 import time
 import socket
 import os
@@ -28,14 +29,14 @@ while True:
 "
 
 echo "MySQL is up - creating and executing migrations"
-python manage.py makemigrations
-python manage.py migrate
+python3 manage.py makemigrations
+python3 manage.py migrate
 
 echo "Creating default admin user"
-python manage.py create_default_admin
+python3 manage.py create_default_admin
 
 echo "Collecting static files"
-python manage.py collectstatic --noinput --clear
+python3 manage.py collectstatic --noinput --clear
 
 echo "Starting Django server"
-exec python manage.py runserver 0.0.0.0:8000
+exec python3 manage.py runserver 0.0.0.0:8000

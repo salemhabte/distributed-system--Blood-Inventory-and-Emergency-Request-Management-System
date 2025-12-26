@@ -20,8 +20,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Copy and make entrypoint executable
+# Fix Windows line endings (CRLF -> LF) and make executable
 COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+RUN sed -i 's/\r$//' /entrypoint.sh && \
+    chmod +x /entrypoint.sh
 
 # Note: Migrations and admin creation will be run at container startup
 # This allows MySQL to be available when the container starts
@@ -29,10 +31,10 @@ RUN chmod +x /entrypoint.sh
 # Create non-root user
 RUN useradd --create-home --shell /bin/bash app \
     && chown -R app:app /app
-USER app
 
 # Expose port
 EXPOSE 8000
 
-# Run the application via entrypoint
+# Run as root to execute entrypoint, entrypoint will handle user switching if needed
 ENTRYPOINT ["/entrypoint.sh"]
+

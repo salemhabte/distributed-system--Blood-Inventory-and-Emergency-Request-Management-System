@@ -7,7 +7,8 @@ from django.db import models
 from .models import InventoryItem
 from .serializers import InventoryItemSerializer, AddBatchSerializer
 from .permissions import BloodBankInventoryPermissions, ReadOnlyForHospital
-from .kafka_producer import publish_event  # We'll create this
+from .kafka_producer import publish_event
+from .inventory_utils import check_and_alert_low_stock
 
 class InventoryListView(generics.ListCreateAPIView):
     """
@@ -37,12 +38,16 @@ class InventoryListView(generics.ListCreateAPIView):
             'organization': getattr(request.user, 'organization_name', 'Unknown')
         })
 
+        # Check for low stock after adding batch
+        check_and_alert_low_stock(serializer.instance.blood_type)
+
         headers = self.get_success_headers(serializer.data)
         return Response(
             {"message": "Blood batch added successfully", "data": serializer.data},
             status=status.HTTP_201_CREATED,
             headers=headers
         )
+    
 
 class ValidateRequestView(APIView):
     """
@@ -95,6 +100,9 @@ class ValidateRequestView(APIView):
                 'organization': getattr(request.user, 'organization_name', 'Unknown'),
                 'allocation_details': allocated_items
             }
+            
+            # Check for low stock after processing request
+            check_and_alert_low_stock(data['blood_type'])
         else:
             response = {
                 'request_id': data['request_id'],
