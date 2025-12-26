@@ -9,7 +9,7 @@ docker-compose exec -T kafka kafka-topics.sh \
   --bootstrap-server localhost:29092 \
   --topic low_blood_alert \
   --partitions 1 \
-  --replication-factor 1 \
+  --replication-factor 2 \
   --if-not-exists
 
 # Create blood-requests topic
@@ -18,7 +18,7 @@ docker-compose exec -T kafka kafka-topics.sh \
   --bootstrap-server localhost:29092 \
   --topic blood-requests \
   --partitions 1 \
-  --replication-factor 1 \
+  --replication-factor 2 \
   --if-not-exists
 
 # Create blood-request-validation topic
@@ -27,7 +27,7 @@ docker-compose exec -T kafka kafka-topics.sh \
   --bootstrap-server localhost:29092 \
   --topic blood-request-validation \
   --partitions 1 \
-  --replication-factor 1 \
+  --replication-factor 2 \
   --if-not-exists
 
 # List all topics

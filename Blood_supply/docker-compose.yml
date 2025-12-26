@@ -29,7 +29,7 @@ services:
     restart: unless-stopped
     command: --default-authentication-plugin=mysql_native_password
     healthcheck:
-      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot_password" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -59,11 +59,6 @@ services:
       ZOOKEEPER_TICK_TIME: 2000
     ports:
       - "2181:2181"
-    healthcheck:
-      test: echo srvr | nc localhost 2181 || exit 1
-      interval: 10s
-      timeout: 5s
-      retries: 5
     restart: unless-stopped
 
   kafka:
@@ -80,8 +75,29 @@ services:
       KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true' # Auto-creates topics on first publish
     depends_on:
-      zookeeper:
-        condition: service_healthy
+      - zookeeper
+    healthcheck:
+      test: [ "CMD", "kafka-topics.sh", "--list", "--zookeeper", "zookeeper:2181" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+
+  kafka2:
+    image: wurstmeister/kafka:latest
+    container_name: kafka2
+    ports:
+      - "9093:9093"
+    environment:
+      KAFKA_BROKER_ID: 2
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENERS: INTERNAL://0.0.0.0:29093,EXTERNAL://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka2:29093,EXTERNAL://localhost:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+    depends_on:
+      - zookeeper
     healthcheck:
       test: [ "CMD", "kafka-topics.sh", "--list", "--zookeeper", "zookeeper:2181" ]
       interval: 30s
@@ -93,12 +109,14 @@ services:
     image: obsidiandynamics/kafdrop
     restart: "no"
     environment:
-      KAFKA_BROKERCONNECT: "kafka:29092"
+      KAFKA_BROKERCONNECT: "kafka:29092,kafka2:29093"
       # JVM_OPTS: "-Xms16M -Xmx512M -Xss180K -XX:-TieredCompilation -XX:+UseStringDeduplication -noverify"
     ports:
       - 9000:9000
     depends_on:
       kafka:
+        condition: service_healthy
+      kafka2:
         condition: service_healthy
 
   hospital-service:
@@ -107,7 +125,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092,kafka2:29093
       - POSTGRES_DB=hospital_db
       - POSTGRES_USER=hospital_user
       - POSTGRES_PASSWORD=hospital_pass
@@ -117,6 +135,8 @@ services:
       - SECRET_KEY=django-insecure-auth-secret-key-change-in-production
     depends_on:
       kafka:
+        condition: service_healthy
+      kafka2:
         condition: service_healthy
       postgres-hospital:
         condition: service_healthy
@@ -128,11 +148,13 @@ services:
     ports:
       - "8001:8000" # Bloodbank → localhost:8001
     environment:
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092,kafka2:29093
       - AUTH_SERVICE_URL=http://auth-service:8000
       - LOW_STOCK_THRESHOLD=10 # Alert when stock <= 10 units
     depends_on:
       kafka:
+        condition: service_healthy
+      kafka2:
         condition: service_healthy
       auth-service:
         condition: service_started
@@ -144,9 +166,11 @@ services:
     ports:
       - "8002:8000" # Notification → localhost:8002
     environment:
-      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092
+      - KAFKA_BOOTSTRAP_SERVERS=kafka:29092,kafka2:29093
     depends_on:
       kafka:
+        condition: service_healthy
+      kafka2:
         condition: service_healthy
     restart: unless-stopped
 
