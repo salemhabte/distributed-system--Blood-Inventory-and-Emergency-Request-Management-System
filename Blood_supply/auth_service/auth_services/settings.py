@@ -1,20 +1,40 @@
 """
-Django settings for bloodbank_service project.
+Django settings for auth_service project.
 """
 
 from pathlib import Path
 import os
+import environ
+
+# Initialize environment variables
+env = environ.Env(
+    DEBUG=(bool, True),
+    SECRET_KEY=(str, "django-insecure-auth-secret-key-change-in-production"),
+    MYSQL_DB=(str, "auth_db"),
+    MYSQL_USER=(str, "auth_user"),
+    MYSQL_PASSWORD=(str, "auth_pass"),
+    MYSQL_HOST=(str, "mysql-auth"),
+    MYSQL_PORT=(int, 3306),
+    DJANGO_ALLOWED_HOSTS=(str, "localhost,127.0.0.1"),
+)
+
+# Read .env file if it exists
+environ.Env.read_env(os.path.join(Path(__file__).resolve().parent.parent, ".env"))
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-auth-secret-key-change-in-production'
+SECRET_KEY = env("SECRET_KEY")
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = env("DEBUG")
 
-ALLOWED_HOSTS = ['*']  # Allows access from Docker network and localhost
+ALLOWED_HOSTS = env("DJANGO_ALLOWED_HOSTS").split(",") if env("DJANGO_ALLOWED_HOSTS") else ["*"] if DEBUG else ["localhost", "127.0.0.1"]
+
+# For containers/proxies
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+USE_X_FORWARDED_HOST = True
 
 # Application definition
 INSTALLED_APPS = [
@@ -26,7 +46,8 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'rest_framework',
     'rest_framework_simplejwt',
-    'bloodbank',  # Your bloodbank app
+    'rest_framework_simplejwt.token_blacklist',
+    'authentication',
 ]
 
 MIDDLEWARE = [
@@ -39,7 +60,7 @@ MIDDLEWARE = [
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
 
-ROOT_URLCONF = 'bloodbank_service.urls'
+ROOT_URLCONF = 'auth_service.urls'
 
 TEMPLATES = [
     {
@@ -57,16 +78,27 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'bloodbank_service.wsgi.application'
+WSGI_APPLICATION = 'auth_service.wsgi.application'
 
-# Database - Using SQLite (embedded, file-based) for bloodbank service
-# This demonstrates polyglot persistence: hospital uses PostgreSQL, bloodbank uses SQLite
+# Database - Using MySQL for authentication service
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',  # File will be created in project root
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': env('MYSQL_DB'),
+        'USER': env('MYSQL_USER'),
+        'PASSWORD': env('MYSQL_PASSWORD'),
+        'HOST': env('MYSQL_HOST'),
+        'PORT': env('MYSQL_PORT'),
+        'OPTIONS': {
+            'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
+            'charset': 'utf8mb4',
+        },
+        'CONN_MAX_AGE': 60,
     }
 }
+
+# Custom User Model
+AUTH_USER_MODEL = 'authentication.User'
 
 # Password validation
 AUTH_PASSWORD_VALIDATORS = [
@@ -90,7 +122,7 @@ TIME_ZONE = 'UTC'
 USE_I18N = True
 USE_TZ = True
 
-# Static files (CSS, JavaScript, Images)
+# Static files
 STATIC_URL = '/static/'
 STATIC_ROOT = BASE_DIR / 'staticfiles'
 
@@ -100,7 +132,7 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 # REST Framework configuration
 REST_FRAMEWORK = {
     'DEFAULT_AUTHENTICATION_CLASSES': (
-        'bloodbank.authentication.LocalJWTAuthentication',
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
     ),
     'DEFAULT_PERMISSION_CLASSES': (
         'rest_framework.permissions.IsAuthenticated',
@@ -110,17 +142,18 @@ REST_FRAMEWORK = {
     ),
 }
 
-# JWT Settings - Use auth service for token validation
+# JWT Settings
 from datetime import timedelta
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(minutes=15),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
-    'ROTATE_REFRESH_TOKENS': False,  # Auth service handles token rotation
-    'BLACKLIST_AFTER_ROTATION': False,
+    'ROTATE_REFRESH_TOKENS': True,
+    'BLACKLIST_AFTER_ROTATION': True,
+    'UPDATE_LAST_LOGIN': False,
 
     'ALGORITHM': 'HS256',
-    'SIGNING_KEY': SECRET_KEY,  # This should match auth service key
+    'SIGNING_KEY': SECRET_KEY,
     'VERIFYING_KEY': None,
     'AUDIENCE': None,
     'ISSUER': None,
@@ -143,6 +176,5 @@ SIMPLE_JWT = {
     'SLIDING_TOKEN_LIFETIME': timedelta(minutes=5),
     'SLIDING_TOKEN_REFRESH_LIFETIME': timedelta(days=1),
 }
+# Using custom token generation in views instead of serializer
 
-# External Auth Service URL
-AUTH_SERVICE_URL = 'http://auth-service:8000'
