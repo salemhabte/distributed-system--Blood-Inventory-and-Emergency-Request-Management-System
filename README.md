@@ -7,15 +7,23 @@ A distributed **microservices-based platform** designed to modernize and automat
 
 ## 📌 Overview
 
-Traditional blood request workflows rely on manual phone calls and delayed coordination, which can cause critical delays during emergencies. This system solves those problems by enabling **fast, accurate, and automated communication** between hospitals and blood banks.
+This project implements a distributed, microservices-based Blood Inventory and Emergency Request Management System designed to support real-time, reliable, and scalable coordination between hospitals, blood banks, and notification services.
 
-The platform is built using **independently deployable microservices** that communicate via **REST APIs** and **Pub/Sub messaging**, ensuring scalability, reliability, and rapid emergency response.
+The system replaces manual and fragmented workflows with an event-driven architecture, where services communicate using REST APIs for synchronous operations and Publish/Subscribe messaging for asynchronous, real-time updates. Each microservice is independently deployable, enabling fault isolation, scalability, and high availability during critical emergency scenarios.
 
----
+By leveraging modern distributed systems principles, the platform ensures fast blood request processing, accurate inventory management, and timely notifications, ultimately improving emergency response efficiency and saving lives.
 
 ## 🧩 Microservices Architecture
 
 The system consists of **three core microservices**:
+## Key Features
+
+- Real-time emergency blood request handling
+- Event-driven communication using Pub/Sub
+- Independent microservices deployment
+- Fault-tolerant and scalable architecture
+- Automatic inventory validation and allocation
+
 
 ### 1️⃣ Hospital Service
 
@@ -87,6 +95,24 @@ This design enables:
    * `bloodbank.blood.rejected`
 5. Notification Service alerts relevant users
 6. Hospital dashboards update automatically
+
+## 🛠️ Technology Stack
+
+**Backend**
+- Django (REST APIs)
+- Django REST Framework
+
+**Messaging**
+- Apache Kafka (Pub/Sub)
+- Zookeeper
+
+**Containerization & Deployment**
+- Docker
+- Docker Compose
+
+**API Documentation & Monitoring**
+- Swagger (OpenAPI)
+- KafkaDrop
 
 ---
 
