@@ -76,11 +76,6 @@ services:
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true' # Auto-creates topics on first publish
     depends_on:
       - zookeeper
-    healthcheck:
-      test: [ "CMD", "kafka-topics.sh", "--list", "--zookeeper", "zookeeper:2181" ]
-      interval: 30s
-      timeout: 10s
-      retries: 5
     restart: unless-stopped
 
   kafka2:
@@ -98,26 +93,21 @@ services:
       KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
     depends_on:
       - zookeeper
-    healthcheck:
-      test: [ "CMD", "kafka-topics.sh", "--list", "--zookeeper", "zookeeper:2181" ]
-      interval: 30s
-      timeout: 10s
-      retries: 5
     restart: unless-stopped
 
-  kafdrop:
-    image: obsidiandynamics/kafdrop
-    restart: "no"
-    environment:
-      KAFKA_BROKERCONNECT: "kafka:29092,kafka2:29093"
-      # JVM_OPTS: "-Xms16M -Xmx512M -Xss180K -XX:-TieredCompilation -XX:+UseStringDeduplication -noverify"
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
     ports:
-      - 9000:9000
+      - "8080:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092,kafka2:29093
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
     depends_on:
-      kafka:
-        condition: service_healthy
-      kafka2:
-        condition: service_healthy
+      - kafka
+      - kafka2
+
 
   hospital-service:
     build: ./hospital_service
@@ -134,12 +124,11 @@ services:
       - DJANGO_DEBUG=True
       - SECRET_KEY=django-insecure-auth-secret-key-change-in-production
     depends_on:
-      kafka:
-        condition: service_healthy
-      kafka2:
-        condition: service_healthy
-      postgres-hospital:
-        condition: service_healthy
+      - kafka
+      - kafka2
+
+      - postgres-hospital
+        
     restart: unless-stopped
 
   bloodbank-service:
@@ -152,12 +141,10 @@ services:
       - AUTH_SERVICE_URL=http://auth-service:8000
       - LOW_STOCK_THRESHOLD=10 # Alert when stock <= 10 units
     depends_on:
-      kafka:
-        condition: service_healthy
-      kafka2:
-        condition: service_healthy
-      auth-service:
-        condition: service_started
+      - kafka
+      - kafka2
+
+      - auth-service
     restart: unless-stopped
 
   notification-service:
@@ -168,10 +155,8 @@ services:
     environment:
       - KAFKA_BOOTSTRAP_SERVERS=kafka:29092,kafka2:29093
     depends_on:
-      kafka:
-        condition: service_healthy
-      kafka2:
-        condition: service_healthy
+      - kafka
+      - kafka2
     restart: unless-stopped
 
   postgres-hospital:
